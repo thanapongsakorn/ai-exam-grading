@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ - AI Exam Grading</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/toast.css">
+    <script src="/static/js/toast.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f1f5f9 100%);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        .login-card:hover {
+            transform: translateY(-5px);
+        }
+
+        h1 {
+            color: #1e293b;
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #475569;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .role-selector {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .role-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .role-option input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .role-label {
+            display: block;
+            text-align: center;
+            padding: 0.6rem;
+            background: #fff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .role-option input:checked+.role-label {
+            border-color: var(--primary);
+            background: rgba(79, 70, 229, 0.05);
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 0.9rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+        }
+
+        .btn-submit:hover {
+            background: var(--primary-hover);
+        }
+
+        .error-msg {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            border: 1px solid #fee2e2;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-card">
+        <h1>Welcome Back</h1>
+        <p class="subtitle">ระบบตรวจข้อสอบอัตโนมัติด้วย AI</p>
+
+        {% if error %}
+        <div class="error-msg">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+        {% endif %}
+
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <label>ชื่อผู้ใช้งาน (Username)</label>
+                <input type="text" name="username" placeholder="เช่น student1 หรือ teacher1" required>
+            </div>
+
+            <div class="form-group">
+                <label>รหัสผ่าน (Password)</label>
+                <input type="password" name="password" placeholder="••••••••" required>
+            </div>
+
+            <label>ระบุบทบาทของคุณ</label>
+            <div class="role-selector">
+                <label class="role-option">
+                    <input type="radio" name="role" value="student" checked>
+                    <span class="role-label">นักเรียน</span>
+                </label>
+                <label class="role-option">
+                    <input type="radio" name="role" value="teacher">
+                    <span class="role-label">ผู้สอน</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-submit">เข้าสู่ระบบ</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: #64748b;">
+            ยังไม่มีบัญชี? <a href="/register"
+                style="color: var(--primary); text-decoration: none; font-weight: 500;">สมัครสมาชิกที่นี่</a>
+        </div>
+    </div>
+
+    {% if error %}
+    <script>
+        window.onload = () => showToast("{{ error }}", "error");
+    </script>
+    {% endif %}
+</body>
+
+</html>

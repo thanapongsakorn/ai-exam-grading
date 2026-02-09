@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - AI Exam Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 2rem 0;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            margin-bottom: 2rem;
+            font-size: 1.75rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        .question-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .btn-remove {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: #fef2f2;
+            color: #dc2626;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-add {
+            background: #eff6ff;
+            color: #2563eb;
+            width: 100%;
+            margin-bottom: 2rem;
+        }
+
+        .btn-cancel {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .footer-actions {
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>⚙️ {{ title }}</h1>
+            <form method="POST">
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label>รายวิชา / กลุ่มสาระ</label>
+                        <input type="text" name="subject" value="{{ exam.subject if exam else '' }}"
+                            placeholder="เช่น วิทยาศาสตร์" required>
+                    </div>
+                    <div class="form-group">
+                        <label>หัวข้อการสอบ</label>
+                        <input type="text" name="title" value="{{ exam.title if exam else '' }}"
+                            placeholder="เช่น ระบบร่างกายมนุษย์" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>คำอธิบายเพิ่มเติม</label>
+                    <textarea name="description" rows="2" required
+                        placeholder="รายละเอียดคร่าวๆ ของข้อสอบชุดนี้">{{ exam.description if exam else '' }}</textarea>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 2rem 0;">
+
+                <h3 style="margin-bottom:1.5rem;">เนื้อหาข้อสอบ (รายข้อ)</h3>
+                <div id="questions-container">
+                    {% if exam and exam.questions %}
+                    {% for q in exam.questions %}
+                    <div class="question-box">
+                        <button type="button" class="btn-remove" onclick="this.parentElement.remove()">ลบข้อนี้</button>
+                        <div class="form-group">
+                            <label>โจทย์คำถาม</label>
+                            <textarea name="q_text[]" rows="2" required>{{ q.text }}</textarea>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>คะแนนเต็ม</label>
+                                <input type="number" name="q_score[]" value="{{ q.max_score }}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>เฉลย / แนวคำตอบ (สำหรับ AI)</label>
+                                <textarea name="q_key[]" rows="2">{{ q.answer_key or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Rubric Section -->
+                        <div class="form-group rubric-wrapper">
+                            <label>เกณฑ์การให้คะแนน (Rubric)</label>
+                            <input type='hidden' name='q_rubric_json[]' class='rubric-data'
+                                value='{{ q.rubric | tojson if q.rubric else "[]" }}'>
+                            <div class="rubric-editor">
+                                <!-- JS will render table here -->
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <button type="button" class="btn btn-add" onclick="addQuestion()">+ เพิ่มคำถามใหม่</button>
+
+                <div class="footer-actions">
+                    <a href="/teacher/dashboard" class="btn btn-cancel">ยกเลิก</a>
+                    <button type="submit" class="btn btn-primary">บันทึกชุดข้อสอบนี้</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function renderRubricEditor(wrapperElement) {
+            const hiddenInput = wrapperElement.querySelector('.rubric-data');
+            const editorDiv = wrapperElement.querySelector('.rubric-editor');
+
+            // Parse existing data
+            let rubrics = [];
+            try {
+                rubrics = JSON.parse(hiddenInput.value || '[]');
+            } catch (e) {
+                console.error("Error parsing rubric data:", e);
+                rubrics = [];
+            }
+
+            // Sync values from DOM inputs back to the 'rubrics' array and hidden input
+            function syncDataFromDOM() {
+                const rows = editorDiv.querySelectorAll('.rubric-row');
+                const newData = [];
+                rows.forEach(row => {
+                    newData.push({
+                        score: parseInt(row.querySelector('.r-score').value) || 0,
+                        level: row.querySelector('.r-level').value,
+                        description: row.querySelector('.r-desc').value
+                    });
+                });
+                rubrics = newData;
+                hiddenInput.value = JSON.stringify(rubrics);
+            }
+
+            function render() {
+                let html = `
+                    <table style="width:100%; border-collapse: collapse; margin-top:0.5rem; font-size:0.9rem;">
+                        <tr style="background:#f1f5f9; text-align:left;">
+                            <th style="padding:0.5rem; border-radius:6px 0 0 6px;">คะแนน</th>
+                            <th style="padding:0.5rem;">ระดับ (เช่น ดีมาก)</th>
+                            <th style="padding:0.5rem;">คำอธิบายเกณฑ์</th>
+                            <th style="padding:0.5rem; border-radius:0 6px 6px 0;"></th>
+                        </tr>
+                `;
+
+                if (rubrics.length === 0) {
+                    html += `<tr><td colspan="4" style="text-align:center; padding:1rem; color:#94a3b8;">ยังไม่มีเกณฑ์คะแนน</td></tr>`;
+                }
+
+                rubrics.forEach((item, index) => {
+                    html += `
+                        <tr class="rubric-row">
+                            <td style="padding:0.3rem;"><input type="number" class="r-score" value="${item.score}" oninput="this.closest('.rubric-editor').updateDataLocal()" style="width:60px;"></td>
+                            <td style="padding:0.3rem;"><input type="text" class="r-level" value="${item.level}" oninput="this.closest('.rubric-editor').updateDataLocal()" placeholder="ระดับ"></td>
+                            <td style="padding:0.3rem;"><input type="text" class="r-desc" value="${item.description}" oninput="this.closest('.rubric-editor').updateDataLocal()" placeholder="คำอธิบาย..." style="width:100%;"></td>
+                            <td style="padding:0.3rem;"><button type="button" style="color:red; border:none; background:none; cursor:pointer;" onclick="removeRubricRow(this)">✕</button></td>
+                        </tr>
+                    `;
+                });
+
+                html += `</table>
+                    <button type="button" onclick="addRubricRow(this)" style="margin-top:0.5rem; font-size:0.8rem; background:#eff6ff; color:#2563eb; border:none; padding:0.3rem 0.8rem; border-radius:4px; cursor:pointer;">+ เพิ่มเกณฑ์</button>
+                `;
+                editorDiv.innerHTML = html;
+            }
+
+            render();
+
+            // Store methods on DOM element for global handlers
+            editorDiv.addRubricRowLocal = function () {
+                syncDataFromDOM();
+                rubrics.push({ score: 0, level: "", description: "" });
+                render();
+                hiddenInput.value = JSON.stringify(rubrics);
+            };
+
+            editorDiv.removeRubricRowLocal = function (index) {
+                syncDataFromDOM();
+                rubrics.splice(index, 1);
+                render();
+                hiddenInput.value = JSON.stringify(rubrics);
+            };
+
+            editorDiv.updateDataLocal = function () {
+                syncDataFromDOM();
+            };
+        }
+
+        // Global handlers delegated to specific editors
+        function addRubricRow(btn) {
+            const editorDiv = btn.closest('.rubric-editor'); // Correctly find the editor div
+            editorDiv.addRubricRowLocal();
+        }
+
+        function removeRubricRow(btn) {
+            const row = btn.closest('tr');
+            // Find index
+            const rows = Array.from(row.parentElement.querySelectorAll('.rubric-row'));
+            const index = rows.indexOf(row);
+
+            const editorDiv = btn.closest('.rubric-editor');
+            editorDiv.removeRubricRowLocal(index);
+        }
+
+        function addQuestion() {
+            const container = document.getElementById('questions-container');
+            const box = document.createElement('div');
+            box.className = 'question-box';
+            box.innerHTML = `
+                <button type="button" class="btn-remove" onclick="this.parentElement.remove()">ลบข้อนี้</button>
+                <div class="form-group">
+                    <label>โจทย์คำถาม</label>
+                    <textarea name="q_text[]" rows="2" required></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 100px 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label>คะแนนเต็ม</label>
+                        <input type="number" name="q_score[]" value="10" required>
+                    </div>
+                    <div class="form-group">
+                        <label>เฉลย / แนวคำตอบ (สำหรับ AI)</label>
+                        <textarea name="q_key[]" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="form-group rubric-wrapper">
+                    <label>เกณฑ์การให้คะแนน (Rubric)</label>
+                    <input type="hidden" name="q_rubric_json[]" class="rubric-data" value="[]">
+                    <div class="rubric-editor"></div>
+                </div>
+            `;
+            container.appendChild(box);
+            // Initialize rubric editor for new box
+            renderRubricEditor(box.querySelector('.rubric-wrapper'));
+        }
+
+        window.onload = function () {
+            const existingWrappers = document.querySelectorAll('.rubric-wrapper');
+            existingWrappers.forEach(wrapper => {
+                renderRubricEditor(wrapper);
+            });
+
+            if (document.getElementById('questions-container').children.length === 0) {
+                addQuestion();
+            }
+        }
+    </script>
+</body>
+
+</html>

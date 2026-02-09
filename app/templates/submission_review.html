@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Submission - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #10b981;
+            --bg: #f1f5f9;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 2rem 0;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 1rem;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .header p {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .ans-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            background: #fff;
+        }
+
+        .q-title {
+            font-weight: 600;
+            font-size: 1.05rem;
+            margin-bottom: 1rem;
+            color: #334155;
+        }
+
+        .student-ans {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 10px;
+            border-left: 4px solid #4f46e5;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .ai-analysis {
+            background: #f0fdf4;
+            border: 1px solid #dcfce7;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .ai-pill {
+            font-size: 0.8rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            background: #10b981;
+            color: white;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .teacher-grading {
+            background: #fffbeb;
+            border: 1px solid #fef3c7;
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 0.7rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-family: inherit;
+        }
+
+        .footer-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 3rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-regrade {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-save {
+            background: var(--primary);
+            color: white;
+        }
+
+        .rubric-table tr.selectable:hover {
+            background-color: #f0f9ff !important;
+            cursor: pointer;
+        }
+
+        .rubric-table tr.selected {
+            background-color: #dbeafe !important;
+            border-left: 4px solid #2563eb;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <a href="/teacher/submissions" style="color: #4f46e5; text-decoration: none; font-size: 0.9rem;">←
+                    กลับหน้ารายการส่ง</a>
+                <h1>🔍 ตรวจสอบคำตอบ: {{ submission.student_username }}</h1>
+                <p>วิชา: {{ submission.exam_title }} | ส่งเมื่อ: {{ submission.submitted_at }}</p>
+            </div>
+
+            <form method="POST">
+                {% for ans in submission.answers %}
+                <div class="ans-card">
+                    <div class="q-title">ข้อ {{ loop.index }}: {{ ans.question_text }} (เต็ม {{ ans.max_score }} คะแนน)
+                    </div>
+
+                    <div class="student-ans">
+                        <strong>คำตอบของนักเรียน:</strong><br>
+                        {{ ans.answer_text }}
+                    </div>
+
+                    <div class="ai-analysis">
+                        <span class="ai-pill">AI Evaluation</span>
+                        <div style="font-weight: 600; color: #166534; font-size: 1.1rem; margin-bottom: 0.5rem;">Score:
+                            {{ ans.score }} / {{ ans.max_score }}</div>
+                        <div style="font-size: 0.9rem; color: #166534; margin-bottom: 10px;">{{ ans.feedback }}</div>
+
+                        {% if ans.justification %}
+                        <div
+                            style="font-size: 0.85rem; color: #1e40af; background: #eff6ff; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #dbeafe;">
+                            <strong>⚖️ AI Justification (เกณฑ์คำนวณ):</strong> {{ ans.justification }}
+                        </div>
+                        {% endif %}
+
+                        <div style="display: flex; gap: 10px; font-size: 0.8rem;">
+                            {% if ans.strengths %}
+                            <div style="flex: 1; background: #fff; padding: 8px; border-radius: 8px;">
+                                <strong style="color: #059669;">✅ จุดเด่น:</strong> {{ ans.strengths }}
+                            </div>
+                            {% endif %}
+                            {% if ans.improvements %}
+                            <div style="flex: 1; background: #fff; padding: 8px; border-radius: 8px;">
+                                <strong style="color: #d97706;">💡 จุดควรแก้:</strong> {{ ans.improvements }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if ans.rubric %}
+                    <div style="margin-bottom: 1.5rem;">
+                        <details
+                            style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem 1rem;">
+                            <summary style="cursor: pointer; font-weight: 500; color: #475569;">📊 เกณฑ์การให้คะแนน
+                                (Rubric) - คลิกเพื่อเลือกคะแนน</summary>
+                            <table class="rubric-table"
+                                style="width:100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem;">
+                                <tr style="background:#f8fafc; text-align:left;">
+                                    <th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">ระดับ</th>
+                                    <th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">คะแนน</th>
+                                    <th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">คำอธิบาย</th>
+                                    <th style="padding:0.5rem; border-bottom:1px solid #e2e8f0;">เลือก</th>
+                                </tr>
+                                {% for r in ans.rubric %}
+                                <tr class="selectable"
+                                    onclick="selectRubric(this, '{{ ans.question_id }}', {{ r.score }})">
+                                    <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">{{ r.level }}</td>
+                                    <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">{{ r.score }}</td>
+                                    <td style="padding:0.5rem; border-bottom:1px solid #f1f5f9;">{{ r.description }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </details>
+                    </div>
+                    {% endif %}
+
+                    <div class="teacher-grading">
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 1.5rem;">
+                            <div>
+                                <label>คะแนนจริง</label>
+                                <input type="number" step="0.5" name="t_score_{{ ans.question_id }}"
+                                    value="{{ ans.teacher_score if ans.teacher_score is not none else ans.score }}"
+                                    max="{{ ans.max_score }}">
+                            </div>
+                            <div>
+                                <label>บันทึกหรือข้อเสนอแนะเพิ่มเติมจากครู</label>
+                                <textarea name="t_feedback_{{ ans.question_id }}"
+                                    rows="2">{{ ans.teacher_feedback or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <div class="footer-buttons">
+                    <button type="submit" name="action" value="regrade" class="btn btn-regrade">
+                        ♻️ สั่ง AI ตรวจวิเคราะห์ใหม่
+                    </button>
+                    <button type="submit" name="action" value="save" class="btn btn-save">
+                        ✅ ยืนยันผลการตรวจและบันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        function selectRubric(row, questionId, score) {
+            // Find input
+            const input = document.querySelector(`input[name="t_score_${questionId}"]`);
+            if (input) {
+                input.value = score;
+                // Highlight visual feedback
+                input.style.backgroundColor = "#dbeafe";
+                setTimeout(() => input.style.backgroundColor = "white", 500);
+            }
+
+            // Update UI selection state
+            // Remove 'selected' from siblings
+            const table = row.closest('table');
+            table.querySelectorAll('tr').forEach(tr => tr.classList.remove('selected'));
+
+            // Add to current
+            row.classList.add('selected');
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายการส่งข้อสอบ - AI Evaluation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 2rem;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-submitted {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-graded {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-reviewed {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .filter-select {
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            font-family: 'Prompt';
+            min-width: 200px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header-section">
+            <div>
+                <a href="/teacher/dashboard"
+                    style="text-decoration: none; color: var(--primary); font-weight: 500; font-size: 0.9rem;">←
+                    กลับสู่แดชบอร์ด</a>
+                <h1 style="margin: 0.5rem 0 0 0; font-size: 1.75rem;">รายการส่งข้อสอบทั้งหมด</h1>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 0.9rem; color: #64748b;">กรองตามวิชา:</span>
+                <select id="subjectFilter" class="filter-select" onchange="filterSubmissions()">
+                    <option value="all">ทุกรายวิชา</option>
+                    {% for sub in subjects %}
+                    <option value="{{ sub }}">{{ sub }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
+            <table id="subsTable">
+                <thead>
+                    <tr>
+                        <th>รายวิชา</th>
+                        <th>นักเรียน</th>
+                        <th>ข้อสอบ</th>
+                        <th>วันที่ส่ง</th>
+                        <th>สถานะ</th>
+                        <th>คะแนน (AI/ครู)</th>
+                        <th>การจัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in submissions %}
+                    <tr class="sub-row" data-subject="{{ sub.subject }}">
+                        <td style="font-weight: 600; color: var(--primary);">{{ sub.subject }}</td>
+                        <td>{{ sub.student_username }}</td>
+                        <td style="font-weight: 500;">{{ sub.exam_title }}</td>
+                        <td style="color: #64748b; font-size: 0.9rem;">{{ sub.submitted_at }}</td>
+                        <td>
+                            <span class="status-badge status-{{ sub.status }}">
+                                {{ "รอตรวจ" if sub.status == 'submitted' else ("AI ตรวจแล้ว" if sub.status == 'graded'
+                                else "สรุปแล้ว") }}
+                            </span>
+                        </td>
+                        <td style="font-weight: 600;">
+                            {{ sub.total_score if sub.total_score is not none else '-' }} /
+                            <span style="color: var(--primary);">{{ sub.teacher_total_score if sub.teacher_total_score
+                                is not none else '-' }}</span>
+                        </td>
+                        <td>
+                            <a href="/teacher/submission/{{ sub.id }}/review" class="btn">ตรวจสอบ</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function filterSubmissions() {
+            const filter = document.getElementById('subjectFilter').value;
+            const rows = document.querySelectorAll('.sub-row');
+            rows.forEach(row => {
+                const subject = row.getAttribute('data-subject');
+                if (filter === 'all' || subject === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

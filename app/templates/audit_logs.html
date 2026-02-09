@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Logs - Teacher Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .navbar {
+            background: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .log-item {
+            border-bottom: 1px solid #f1f5f9;
+            padding: 1.5rem 0;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .change-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .change-table th {
+            text-align: left;
+            color: #94a3b8;
+            padding: 0.5rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .change-table td {
+            padding: 0.5rem;
+            vertical-align: top;
+        }
+
+        .old-val {
+            color: #dc2626;
+            text-decoration: line-through;
+        }
+
+        .new-val {
+            color: #16a34a;
+            font-weight: 500;
+        }
+
+        .btn-back {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div style="font-weight: 600; font-size: 1.25rem; color: var(--primary);">Audit Logs</div>
+        <div style="font-size: 0.9rem; color: #64748b;">ผู้สอน: <strong>{{ user }}</strong></div>
+    </nav>
+
+    <div class="container">
+        <a href="/teacher/dashboard" class="btn-back">← กลับไปยัง Dashboard</a>
+        <div class="card">
+            <h2 style="margin-top:0;">ประวัติการแก้ไขคะแนน</h2>
+            {% if not logs %}
+            <p style="color:#64748b; text-align:center; padding: 2rem;">ยังไม่มีประวัติการบรรจุหรือแก้ไขข้อมูล</p>
+            {% endif %}
+
+            {% for log in logs %}
+            <div class="log-item">
+                <div class="log-header">
+                    <span>👤 ผู้แก้: {{ log.teacher }}</span>
+                    <span>⏰ {{ log.timestamp }}</span>
+                </div>
+                <div>รหัสการส่ง: <code
+                        style="background:#f1f5f9; padding: 2px 4px; border-radius: 4px;">{{ log.submission_id }}</code>
+                </div>
+
+                <table class="change-table">
+                    <thead>
+                        <tr>
+                            <th>ข้อที่</th>
+                            <th>การเปลี่ยนแปลงคะแนน</th>
+                            <th>ข้อเสนอแนะใหม่</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for change in log.changes %}
+                        <tr>
+                            <td>{{ change.question_id }}</td>
+                            <td>
+                                <span class="old-val">{{ change.old_score }}</span>
+                                <span style="margin: 0 0.5rem;">→</span>
+                                <span class="new-val">{{ change.new_score }}</span>
+                            </td>
+                            <td>{{ change.new_feedback }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Performance - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .navbar {
+            background: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+
+        th {
+            text-align: left;
+            color: #64748b;
+            font-weight: 500;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 1rem;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .score-pill {
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .btn-back {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .rank-high {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .rank-mid {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .rank-low {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div style="font-weight: 600; font-size: 1.25rem; color: var(--primary);">Student Performance</div>
+        <div style="font-size: 0.9rem; color: #64748b;">ผู้สอน: <strong>{{ user }}</strong></div>
+    </nav>
+
+    <div class="container">
+        <a href="/teacher/dashboard" class="btn-back">← กลับไปยัง Dashboard</a>
+        <div class="card">
+            <h2 style="margin-top:0;">📊 วิเคราะห์ผลการเรียนรายบุคคล</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ชื่อนักเรียน (Username)</th>
+                        <th>ส่งข้อสอบแล้ว (ครั้ง)</th>
+                        <th>คะแนนเฉลี่ย</th>
+                        <th>สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    {% set rank = 'high' if student.avg_score >= 8 else 'mid' if student.avg_score >= 5 else 'low' %}
+                    <tr>
+                        <td style="font-weight: 500;">{{ student.username }}</td>
+                        <td>{{ student.submissions }} รายการ</td>
+                        <td>
+                            <span class="score-pill rank-{{ rank }}">
+                                {{ student.avg_score }} / 10
+                            </span>
+                        </td>
+                        <td style="font-size: 0.9rem;">
+                            {% if rank == 'high' %}ดีเยี่ยม{% elif rank == 'mid' %}ผ่านเกณฑ์{% else %}ควรปรับปรุง{%
+                            endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+
+</html>

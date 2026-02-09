@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ exam.title }} - AI Exam</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            color: #1e293b;
+            padding: 2rem 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #64748b;
+        }
+
+        .q-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            border: 1px solid #f1f5f9;
+        }
+
+        .q-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .q-num {
+            background: #e0e7ff;
+            color: #4338ca;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: #fcfdfe;
+            transition: all 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+            background-color: white;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+            transition: all 0.2s;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px -3px rgba(79, 70, 229, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✍️ {{ exam.title }}</h1>
+            <p>{{ exam.description }}</p>
+        </div>
+
+        <form action="/exam/{{ exam.id }}/submit" method="POST">
+            {% for q in exam.questions %}
+            <div class="q-card">
+                <div class="q-title">
+                    <span class="q-num">{{ loop.index }}</span>
+                    <span>{{ q.text }}</span>
+                    <span style="margin-left:auto; color:#94a3b8; font-size: 0.85rem;">({{ q.max_score }} คะแนน)</span>
+                </div>
+                <textarea name="answer_{{ q.id }}" rows="5" placeholder="พิมพ์คำตอบของคุณที่นี่..." required></textarea>
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="btn-submit">ส่งคำตอบให้ระบบ AI ตรวจสอบ</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 2rem;">
+            <a href="/student/dashboard" style="color: #64748b; text-decoration: none; font-size: 0.9rem;">←
+                ยกเลิกและกลับหน้าเดิม</a>
+        </div>
+    </div>
+</body>
+
+</html>

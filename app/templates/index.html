@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Exam Grading - มิติใหม่ของการตรวจข้อสอบ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #818cf8;
+            --bg-start: #e0e7ff;
+            --bg-end: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Ambient Background Blobs */
+        body::before,
+        body::after {
+            content: '';
+            position: absolute;
+            width: 40vw;
+            height: 40vw;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.4;
+        }
+
+        body::before {
+            top: -10%;
+            left: -10%;
+            background: var(--primary-light);
+        }
+
+        body::after {
+            bottom: -10%;
+            right: -10%;
+            background: #f472b6;
+        }
+
+        .hero-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(15px);
+            padding: 4rem 3rem;
+            border-radius: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
+        }
+
+        .highlight-ai {
+            color: var(--primary);
+            font-size: 3.5rem;
+            display: block;
+            margin: 0.5rem 0;
+            background: linear-gradient(to right, #4f46e5, #9333ea);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin-bottom: 2.5rem;
+            font-weight: 400;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 14px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-block;
+            min-width: 180px;
+        }
+
+        .btn-student {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-student:hover {
+            background: #4338ca;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 25px -5px rgba(79, 70, 229, 0.4);
+        }
+
+        .btn-teacher {
+            background: white;
+            color: var(--primary);
+            border: 1.5px solid var(--primary);
+        }
+
+        .btn-teacher:hover {
+            background: rgba(79, 70, 229, 0.05);
+            transform: translateY(-3px);
+        }
+
+        .footer-tag {
+            margin-top: 3rem;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="hero-card">
+        <h1>ยินดีต้อนรับสู่ระบบตรวจข้อสอบอัตนัย</h1>
+        <span class="highlight-ai" style="font-size: 1.8rem;">Generative AI system for subjective exams</span>
+
+        <div class="actions">
+            <a href="/login" class="btn btn-student">เข้าสู่ระบบเพื่อเริ่มต้น</a>
+        </div>
+    </div>
+</body>
+
+</html>

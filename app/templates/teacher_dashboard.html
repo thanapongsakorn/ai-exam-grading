@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Teacher</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/toast.css">
+    <script src="/static/js/toast.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .navbar {
+            background: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h4 {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .stat-card div {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+            color: var(--primary);
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            color: #64748b;
+            font-weight: 500;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 1rem;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-plus {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-edit {
+            background: #f1f5f9;
+            color: #475569;
+            margin-right: 0.5rem;
+        }
+
+        .btn-delete {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .btn-view {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .action-cell {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .chart-container.collapsed {
+            grid-template-columns: 1fr;
+            padding: 1rem 1.5rem;
+        }
+
+        #chartWrapper {
+            height: 250px;
+            position: relative;
+            transition: opacity 0.3s ease;
+        }
+
+        .btn-toggle {
+            background: #f1f5f9;
+            color: #64748b;
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-toggle:hover {
+            background: #e2e8f0;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div style="font-weight: 600; font-size: 1.25rem; color: var(--primary);">Admin Dashboard</div>
+        <div style="font-size: 0.9rem; color: #64748b;">
+            <a href="/teacher/students" style="margin-right: 1.5rem; text-decoration: none; color: var(--primary);">📋
+                รายชื่อนักเรียน</a>
+            <a href="/teacher/audit-logs" style="margin-right: 1.5rem; text-decoration: none; color: #64748b;">📜
+                ประวัติแก้ไข</a>
+            ผู้สอน: <strong>{{ user }}</strong> | <a href="/logout"
+                style="color:#64748b; text-decoration:none;">ออกจากระบบ</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="stats-row">
+            <div class="stat-card">
+                <h4>คลังข้อสอบ</h4>
+                <div style="color: var(--primary);">{{ stats['total_exams'] }} ชุด</div>
+            </div>
+            <div class="stat-card">
+                <h4>การส่งรวม</h4>
+                <div style="color: #10b981;">{{ stats['total_submissions'] }} รายการ</div>
+            </div>
+            <div class="stat-card">
+                <h4>คะแนนเฉลี่ยรวม</h4>
+                <div style="color: #f59e0b;">{{ stats['avg_score'] }} / 10</div>
+            </div>
+        </div>
+
+        <div class="chart-container" id="chartContainer">
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <h2 style="margin-top:0;">📊 การแจกแจงคะแนน</h2>
+                    <button onclick="toggleChart()" class="btn-toggle" id="toggleBtn">
+                        <span id="toggleIcon">👁️‍🗨️</span> <span id="toggleText">ซ่อนกราฟ</span>
+                    </button>
+                </div>
+                <p style="color: #64748b; font-size: 0.9rem;">สรุปสัดส่วนผลคะแนนของนักเรียนทั้งชั้นหลังการตรวจ</p>
+                <div id="statsDetails" style="font-size: 0.85rem; color: #475569; margin-top: 1rem; line-height: 1.8;">
+                    <span style="color: #10b981;">●</span> สูง (8-10): <strong>{{ stats['distribution']['High (8-10)']
+                        }}</strong> คน<br>
+                    <span style="color: #f59e0b;">●</span> กลาง (5-7): <strong>{{ stats['distribution']['Mid (5-7)']
+                        }}</strong> คน<br>
+                    <span style="color: #ef4444;">●</span> ควรปรับปรุง (0-4): <strong>{{ stats['distribution']['Low
+                        (0-4)'] }}</strong> คน
+                </div>
+            </div>
+            <div id="chartWrapper">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="header-section">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <h2 style="margin:0;">คลังข้อสอบ</h2>
+                    <select id="subjectFilter" onchange="filterExams()"
+                        style="padding: 0.4rem; border-radius: 8px; border: 1px solid #e2e8f0; font-family: 'Prompt'; font-size: 0.85rem;">
+                        <option value="all">ทุกรายวิชา</option>
+                        {% for sub in subjects %}
+                        <option value="{{ sub }}">{{ sub }}</option>{% endfor %}
+                    </select>
+                </div>
+                <a href="/teacher/exam/create" class="btn btn-plus">+ เพิ่มข้อสอบ</a>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">วิชา</th>
+                        <th>หัวข้อ</th>
+                        <th>รายละเอียด</th>
+                        <th>คำถาม</th>
+                        <th>การจัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exam in exams %}
+                    <tr class="exam-row" data-subject="{{ exam.subject | default('') }}">
+                        <td style="color: var(--primary); font-weight: 500;">{{ exam.subject | default('ไม่ได้ระบุ') }}
+                        </td>
+                        <td style="font-weight:500;">{{ exam.title }}</td>
+                        <td style="color:#64748b; font-size: 0.9rem;">{{ exam.description }}</td>
+                        <td>{{ exam.questions|length }} ข้อ</td>
+                        <td>
+                            <div class="action-cell">
+                                <a href="/teacher/exam/edit/{{ exam.id }}" class="btn btn-edit">แก้ไข</a><a
+                                    href="/teacher/exam/{{ exam.id }}/export" class="btn btn-view"
+                                    title="ส่งออกเป็น CSV">Export</a>
+                                <form action="/teacher/exam/delete/{{ exam.id }}" method="POST"
+                                    onsubmit="return confirm('ลบข้อสอบ?')">
+                                    <button type="submit" class="btn btn-delete">ลบ</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="header-section">
+                <h2 style="margin:0;">รายการส่งล่าสุด</h2>
+                <a href="/teacher/submissions" class="btn btn-view">ดูทั้งหมด</a>
+            </div>
+            <p style="color:#64748b;">มีข้อมูลรอการตรวจสอบ {{ submissions|length }} รายการ</p>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['สูง', 'กลาง', 'ปรับปรุง'],
+                    datasets: [{
+                        label: 'จำนวนคน',
+                        data: [
+                            parseInt('{{ stats["distribution"]["High (8-10)"] | default(0) }}'),
+                            parseInt('{{ stats["distribution"]["Mid (5-7)"] | default(0) }}'),
+                            parseInt('{{ stats["distribution"]["Low (0-4)"] | default(0) }}')
+                        ],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderRadius: 8,
+                        barThickness: 50
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1e293b' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        });
+
+        function toggleChart() {
+            const container = document.getElementById('chartContainer');
+            const wrapper = document.getElementById('chartWrapper');
+            const btnText = document.getElementById('toggleText');
+            const btnIcon = document.getElementById('toggleIcon');
+
+            if (wrapper.style.display === 'none') {
+                wrapper.style.display = 'block';
+                container.classList.remove('collapsed');
+                btnText.innerText = 'ซ่อนกราฟ';
+                btnIcon.innerText = '👁️‍🗨️';
+                localStorage.setItem('showChart', 'true');
+            } else {
+                wrapper.style.display = 'none';
+                container.classList.add('collapsed');
+                btnText.innerText = 'แสดงกราฟ';
+                btnIcon.innerText = '📊';
+                localStorage.setItem('showChart', 'false');
+            }
+        }
+
+        // Restore State
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('showChart') === 'false') {
+                const wrapper = document.getElementById('chartWrapper');
+                const container = document.getElementById('chartContainer');
+                const btnText = document.getElementById('toggleText');
+                const btnIcon = document.getElementById('toggleIcon');
+
+                if (wrapper && container) {
+                    wrapper.style.display = 'none';
+                    container.classList.add('collapsed');
+                    btnText.innerText = 'แสดงกราฟ';
+                    btnIcon.innerText = '📊';
+                }
+            }
+        });
+
+        function filterExams() {
+            const filter = document.getElementById('subjectFilter').value;
+            const rows = document.querySelectorAll('.exam-row');
+            rows.forEach(row => {
+                if (filter === 'all' || row.getAttribute('data-subject') === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
+    <script>
+        // Check for success messages in URL
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('msg')) {
+                showToast(urlParams.get('msg'), 'success');
+            }
+        };
+    </script>
+</body>
+
+</html>

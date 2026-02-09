@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - AI Exam</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .navbar {
+            background: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 1.25rem;
+        }
+
+        .user-info {
+            font-size: 0.9rem;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logout-btn {
+            color: #dc2626;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #64748b;
+        }
+
+        .exam-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .exam-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 1px solid #f1f5f9;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .exam-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .exam-card h3 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1.25rem;
+            color: #1e293b;
+        }
+
+        .exam-card p {
+            color: #64748b;
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+            flex-grow: 1;
+        }
+
+        .btn-start {
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            text-align: center;
+            padding: 0.75rem;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .btn-history {
+            margin-top: 2rem;
+            display: inline-block;
+            background: #fff;
+            color: #475569;
+            border: 1.5px solid #e2e8f0;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-history:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="logo">AI Exam Pro</div>
+        <div class="user-info">
+            <span>👤 นักเรียน: <strong>{{ user }}</strong></span>
+            <a href="/logout" class="logout-btn">ออกจากระบบ</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1>รายการข้อสอบที่เปิดให้ทำ</h1>
+            <p>เลือกหัวข้อสอบเพื่อเริ่มต้นการวัดผลด้วยระบบวิเคราะห์อัตโนมัติ</p>
+        </div>
+
+        <div class="exam-grid">
+            {% for exam in exams %}
+            <div class="exam-card">
+                <div style="font-size: 0.75rem; color: var(--primary); font-weight: 600; margin-bottom: 0.25rem;">{{
+                    exam.subject | default('ทั่วไป') }}</div>
+                <h3>{{ exam.title }}</h3>
+                <p>{{ exam.description or "ไม่มีคำอธิบาย" }}</p>
+                <a href="/exam/{{ exam.id }}" class="btn-start">เริ่มทำข้อสอบ</a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="text-align: center;">
+            <a href="/results" class="btn-history">📂 ดูประวัติและผลการสอบของฉัน</a>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สมัครสมาชิก - AI Exam Grading</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/toast.css">
+    <script src="/static/js/toast.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, #eef2ff 0%, #f1f5f9 100%);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .register-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        h1 {
+            color: #1e293b;
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #475569;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 0.9rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 1rem;
+        }
+
+        .btn-submit:hover {
+            background: var(--primary-hover);
+        }
+
+        .footer-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        .footer-link a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .error-msg {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            border: 1px solid #fee2e2;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="register-card">
+        <h1>Create Account</h1>
+        <p class="subtitle">เริ่มสร้างบัญชีนักเรียนของคุณเพื่อทำข้อสอบ AI</p>
+
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
+
+        <form action="/register" method="POST">
+            <div class="form-group">
+                <label>ชื่อผู้ใช้งาน (Username)</label>
+                <input type="text" name="username" placeholder="ตั้งชื่อผู้ใช้ของคุณ" required minlength="3">
+            </div>
+
+            <div class="form-group">
+                <label>รหัสผ่าน (Password)</label>
+                <input type="password" name="password" placeholder="••••••••" required minlength="6">
+            </div>
+
+            <button type="submit" class="btn-submit">สมัครสมาชิก</button>
+        </form>
+
+        <div class="footer-link">
+            มีบัญชีอยู่แล้ว? <a href="/login">เข้าสู่ระบบที่นี่</a>
+        </div>
+    </div>
+
+    {% if error %}
+    <script>
+        window.onload = () => showToast("{{ error }}", "error");
+    </script>
+    {% endif %}
+</body>
+
+</html>
