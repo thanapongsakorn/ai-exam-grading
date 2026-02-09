@@ -1,0 +1,1 @@
+{'_id': ObjectId('6989726a0da42b5f41365745'), 'subject': 'คณิตศาสตร์', 'title': 'บวกเลข', 'description': 'การบวกเลข', 'questions': [{'id': 'q1', 'text': '100+234', 'max_score': 10, 'answer_key': '334', 'grading_criteria': None}], 'created_by': 'teacher1'}

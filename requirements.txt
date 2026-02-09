@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+jinja2
+python-multipart
+motor
+dnspython
+pydantic
+pydantic-settings
+google-generativeai
+python-dotenv
+passlib[bcrypt]
+bcrypt==3.2.2
