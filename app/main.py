@@ -68,11 +68,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Subjective Exam Grading AI", lifespan=lifespan)
 
+# Get current directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Mount static files
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 # Templates
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 from fastapi import Depends, HTTPException
 
