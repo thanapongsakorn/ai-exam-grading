@@ -1,32 +1,11 @@
-# Python
+# Python (Exclude only binaries and virtual env)
 __pycache__/
 *.py[cod]
-*$py.class
 venv/
-.env
 
-# Logs
-*.txt
-*.log
+# Environment variables (Still recommended to keep private)
+# .env 
 
-# Scripts & Temporary files
-/verify_*.py
-/seed_*.py
-/test_*.py
-/check_*.py
-/clear_db.py
-/fix_html.py
-/list_models*.py
-/migrate_to_cloud.py
-/reproduce_*.py
-/trigger_teacher_error.py
-/parallel_check.py
-*.bat
-/exam_dump.txt
-/models_list.txt
-/verify_output.txt
-/test_result.txt
-
-# OS
+# System files
 .DS_Store
 Thumbs.db
