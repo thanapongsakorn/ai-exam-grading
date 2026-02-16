@@ -304,48 +304,46 @@ async def submit_exam(request: Request, exam_id: str, user: dict = Depends(get_c
     
     # Trigger AI Grading in Background
     async def process_grading(sid, exam_obj, answers_list):
-        async def grade_single_question(ans):
+        batch_data = []
+        for ans in answers_list:
             q_id = ans["question_id"]
             original_q = next((q for q in exam_obj["questions"] if q["id"] == q_id), None)
-            
             if original_q:
-                try:
-                    result = await ai_service.grade_answer(
-                        question_text=original_q["text"],
-                        student_answer=ans["answer_text"],
-                        max_score=original_q["max_score"],
-                        answer_key=original_q.get("answer_key"),
-                        grading_criteria=original_q.get("grading_criteria"),
-                        rubric=original_q.get("rubric"),
-                        context={"student": user["username"], "exam": exam.get("title"), "q_id": q_id}
-                    )
+                batch_data.append({
+                    "question_text": original_q["text"],
+                    "student_answer": ans["answer_text"],
+                    "max_score": original_q["max_score"],
+                    "answer_key": original_q.get("answer_key"),
+                    "rubric": original_q.get("rubric")
+                })
+        
+        if batch_data:
+            results = await ai_service.grade_batch(batch_data, context={"student": user["username"], "exam": exam.get("title")})
+            
+            total_score = 0
+            res_idx = 0
+            for ans in answers_list:
+                original_q = next((q for q in exam_obj["questions"] if q["id"] == ans["question_id"]), None)
+                if original_q and res_idx < len(results):
+                    res = results[res_idx]
                     ans.update({
-                        "score": result["score"],
-                        "justification": result.get("justification"),
-                        "feedback": result["feedback"],
-                        "strengths": result.get("strengths"),
-                        "improvements": result.get("improvements")
+                        "score": res.get("score", 0),
+                        "justification": res.get("justification"),
+                        "feedback": res.get("feedback"),
+                        "strengths": res.get("strengths"),
+                        "improvements": res.get("improvements")
                     })
-                    return result["score"]
-                except Exception as e:
-                    print(f"Error grading question {q_id}: {e}")
-                    ans.update({"score": 0, "feedback": "เกิดข้อผิดพลาดในการตรวจข้อนี้"})
-                    return 0
-            return 0
-
-        # Grade all questions in parallel
-        scores = await asyncio.gather(*(grade_single_question(ans) for ans in answers_list))
-        total_score = sum(scores)
-
-        # Update submission with scores and feedback
-        await db.db["submissions"].update_one(
-            {"_id": sid},
-            {"$set": {
-                "answers": answers_list,
-                "total_score": total_score,
-                "status": "graded"
-            }}
-        )
+                    total_score += res.get("score", 0)
+                    res_idx += 1
+            
+            await db.db["submissions"].update_one(
+                {"_id": sid},
+                {"$set": {
+                    "answers": answers_list,
+                    "total_score": total_score,
+                    "status": "graded"
+                }}
+            )
 
     # Fire and forget (in a real production app, use Celery/BackgroundTasks)
     asyncio.create_task(process_grading(submission_id, exam, answers))
@@ -683,41 +681,48 @@ async def review_submission_submit(request: Request, sub_id: str, user: dict = D
         # Get associated exam
         exam = await db.db["exams"].find_one({"_id": ObjectId(submission["exam_id"])})
         
-        # Define the grading function (similar to the one in submit_exam)
+        # Define the grading function using Batch Processing
         async def process_grading_task(sid, exam_obj, answers_list):
-            total_score = 0
-            graded_answers = []
+            batch_data = []
             for ans in answers_list:
                 q_id = ans["question_id"]
                 original_q = next((q for q in exam_obj["questions"] if q["id"] == q_id), None)
                 if original_q:
-                    result = await ai_service.grade_answer(
-                        question_text=original_q["text"],
-                        student_answer=ans["answer_text"],
-                        max_score=original_q["max_score"],
-                        answer_key=original_q.get("answer_key"),
-                        grading_criteria=original_q.get("grading_criteria"),
-                        rubric=original_q.get("rubric"),
-                        context={"student": submission["student_username"], "exam_id": submission["exam_id"], "q_id": q_id, "action": "regrade"}
-                    )
-                    ans["score"] = result["score"]
-                    ans["justification"] = result.get("justification")
-                    ans["feedback"] = result["feedback"]
-                    ans["strengths"] = result.get("strengths")
-                    ans["improvements"] = result.get("improvements")
-                    total_score += result["score"]
-                    graded_answers.append(ans)
-                else:
-                    graded_answers.append(ans)
+                    batch_data.append({
+                        "question_text": original_q["text"],
+                        "student_answer": ans["answer_text"],
+                        "max_score": original_q["max_score"],
+                        "answer_key": original_q.get("answer_key"),
+                        "rubric": original_q.get("rubric")
+                    })
 
-            await db.db["submissions"].update_one(
-                {"_id": sid},
-                {"$set": {
-                    "answers": graded_answers,
-                    "total_score": total_score,
-                    "status": "graded" # Reset to graded after re-grading
-                }}
-            )
+            if batch_data:
+                results = await ai_service.grade_batch(batch_data, context={"student": submission["student_username"], "exam_id": submission["exam_id"], "action": "regrade"})
+                
+                total_score = 0
+                res_idx = 0
+                for ans in answers_list:
+                    original_q = next((q for q in exam_obj["questions"] if q["id"] == ans["question_id"]), None)
+                    if original_q and res_idx < len(results):
+                        res = results[res_idx]
+                        ans.update({
+                            "score": res.get("score", 0),
+                            "justification": res.get("justification"),
+                            "feedback": res.get("feedback"),
+                            "strengths": res.get("strengths"),
+                            "improvements": res.get("improvements")
+                        })
+                        total_score += res.get("score", 0)
+                        res_idx += 1
+
+                await db.db["submissions"].update_one(
+                    {"_id": sid},
+                    {"$set": {
+                        "answers": answers_list,
+                        "total_score": total_score,
+                        "status": "graded" 
+                    }}
+                )
 
         # Trigger re-grading
         asyncio.create_task(process_grading_task(ObjectId(sub_id), exam, submission["answers"]))

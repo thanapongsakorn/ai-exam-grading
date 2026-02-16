@@ -21,112 +21,118 @@ class AIService:
         genai.configure(api_key=api_key)
         # ใช้ชื่อโมเดลที่แนะนำและเสถียรที่สุด
         self.model = genai.GenerativeModel('gemini-flash-latest')
+        # Lazy initialization for semaphore to avoid event loop issues
+        self._semaphore = None
+
+    @property
+    def semaphore(self):
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(5)
+        return self._semaphore
+
+    async def grade_batch(self, questions_data: list, context: dict = None):
+        """
+        Grades all answers in one go for maximum quota efficiency.
+        questions_data: list of dicts {question_text, student_answer, max_score, answer_key, rubric}
+        """
+        async with self.semaphore:
+            print(f"AI Batch Grading started for {len(questions_data)} questions.")
+            
+            questions_prompt = ""
+            for i, q in enumerate(questions_data):
+                rubric_text = ""
+                if q.get('rubric'):
+                    rubric_text = "\n[เกณฑ์ Rubric]\n"
+                    for item in q['rubric']:
+                        if hasattr(item, 'dict'): item = item.dict()
+                        rubric_text += f"- {item.get('score')} คะแนน: {item.get('description')}\n"
+
+                questions_prompt += f"""
+--- ข้อที่ {i+1} ---
+โจทย์: {q['question_text']}
+แนวคำตอบ: {q.get('answer_key') or 'ไม่ได้ระบุ'}
+คะแนนเต็ม: {q['max_score']}
+{rubric_text}
+คำตอบของนักเรียน: {q['student_answer']}
+"""
+
+            prompt = f"""
+คุณคือระบบผู้เชี่ยวชาญในการตรวจข้อสอบอัตนัย (Subjective Exam Grader) 
+จงประเมินคำตอบของนักเรียนทีละข้อตามข้อมูลที่กำหนดให้ โดยให้คะแนนอย่างเที่ยงตรงตามเกณฑ์
+
+[ข้อมูลข้อสอบ]
+{questions_prompt}
+
+[กฎการตรวจ]
+1. ประเมินความถูกต้องตามหลักวิชาการและเกณฑ์ที่ให้มา
+2. ให้คะแนนสุทธิ [0 ถึง คะแนนเต็ม] เท่านั้น
+3. สำหรับแต่ละข้อ จงระบุจุดแข็ง (Strengths) และสิ่งที่ควรปรับปรุง (Improvements)
+
+[รูปแบบการตอบกลับ (Strict JSON Array)]
+จงตอบกลับเป็น JSON Array ของอ็อบเจกต์ในลำดับที่ถูกต้อง ดังนี้:
+[
+    {{
+        "score": [คะแนนข้อ 1],
+        "justification": "[เหตุผลสั้นๆ]",
+        "feedback": "[คำแนะนำรวม]",
+        "strengths": "[จุดเด่น]",
+        "improvements": "[จุดที่ควรแก้]"
+    }},
+    ...
+]
+"""
+            for attempt in range(3):
+                try:
+                    print(f"  Attempt {attempt+1}: Calling Gemini API for single batch...")
+                    response = await self.model.generate_content_async(prompt)
+                    
+                    if not response.parts:
+                        print(f"  Warning: Response was blocked or empty.")
+                        continue
+                        
+                    text = response.text
+                    json_str = text
+                    if "```json" in text:
+                        json_str = text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in text:
+                        json_str = text.split("```")[1].split("```")[0].strip()
+                    
+                    match = re.search(r'\[.*\]', json_str, re.DOTALL)
+                    if match:
+                        results = json.loads(match.group())
+                        if len(results) == len(questions_data):
+                            print(f"  Successfully parsed {len(results)} results.")
+                            # Success log
+                            try:
+                                await db.db["ai_logs"].insert_one({
+                                    "timestamp": datetime.now(),
+                                    "context": context,
+                                    "status": "success",
+                                    "batch_size": len(questions_data)
+                                })
+                            except Exception as db_e:
+                                print(f"  DB Log Error (Non-critical): {db_e}")
+                            return results
+                        else:
+                            print(f"  Batch size mismatch: expected {len(questions_data)}, got {len(results)}")
+                    else:
+                        print(f"  Failed to find JSON array in response: {text[:100]}...")
+                except Exception as e:
+                    print(f"  Batch attempt {attempt+1} failed: {e}")
+                    await asyncio.sleep(1)
+
+            # Fallback to empty results
+            return [{"score": 0, "feedback": "เกิดข้อผิดพลาดในการตรวจ"} for _ in range(len(questions_data))]
 
     async def grade_answer(self, question_text: str, student_answer: str, max_score: int, answer_key: str = None, grading_criteria: str = None, rubric: list = None, context: dict = None):
-        print(f"AI Grading started for question: {question_text[:30]}...")
-
-        rubric_text = ""
-        if rubric:
-            rubric_text = "\n[เกณฑ์การให้คะแนนแบบละเอียด (Rubric)]\n"
-            for item in rubric:
-                # Handle both dict (from raw json) and RubricItem object
-                if hasattr(item, 'dict'): item = item.dict()
-                rubric_text += f"- คะแนน {item.get('score')} ({item.get('level')}): {item.get('description')}\n"
-            rubric_text += "\nคำสั่งพิเศษ: จงให้คะแนนตามเกณฑ์ใน Rubric นี้อย่างเคร่งครัด\n"
-
-        if answer_key:
-            instruction_mode = "1. การวิเคราะห์ (Systematic Comparison): เปรียบเทียบคำตอบของนักเรียนกับ 'คำตอบเฉลย' และ 'เกณฑ์การให้คะแนน' ทีละประเด็น"
-            key_info = f"- คำตอบเฉลย/แนวคำตอบมาตรฐาน: {answer_key}"
-        else:
-            instruction_mode = "1. การวิเคราะห์ (Fact-based Evaluation): ประเมินความถูกต้องตามหลักวิชาการ (เนื่องจากไม่มีเฉลยระบุไว้ ให้ใช้ความรู้ของ AI ตัดสิน)"
-            key_info = "- คำตอบเฉลย/แนวคำตอบมาตรฐาน: ไม่ได้ระบุ (ให้ใช้ความรู้ทั่วไปของ AI และให้คะแนนตามความถูกต้องของเนื้อหา)"
-
-        criteria_text = grading_criteria if grading_criteria else "ประเมินตามความถูกต้องและความสมเหตุสมผล"
-
-        prompt = f"""
-        คุณคือระบบผู้เชี่ยวชาญ (Expert System) ในการประเมินข้อสอบอัตนัยที่เน้นความเที่ยงตรงสูง
-        จงดำเนินการวิเคราะห์และประเมินคำตอบของนักเรียนตามหลักการดังนี้:
-        
-        [ข้อมูลประกอบการประเมิน]
-        - โจทย์: {question_text}
-        {key_info}
-        - เกณฑ์การให้คะแนนทั่วไป: {criteria_text}
-        {rubric_text}
-        - คะแนนเต็ม: {max_score}
-        
-        [คำตอบของนักเรียน]
-        {student_answer}
-        
-        [กระบวนการประเมิน (Strict Instructions)]
-        {instruction_mode}
-        2. การแจกแจงคะแนน (Scoring Breakdown): ระบุว่าคะแนนแต่ละส่วนมาจากความถูกต้องตรงไหน (หากมี Rubric ให้ระบุว่าตกอยู่ในเกณฑ์ระดับใด)
-        3. การให้คะแนนสุทธิ: คะแนนรวมต้องอยู่ระหว่าง 0 ถึง {max_score} เท่านั้น
-        4. การให้คำแนะนำ (Feedback): ระบุจุดแข็ง (Strengths) และสิ่งที่ควรปรับปรุง (Improvements) เพื่อพัฒนาในครั้งต่อไป
-        
-        [รูปแบบการตอบกลับ (Strict JSON)]
-        {{
-            "score": [ตัวเลขคะแนนสุทธิ],
-            "justification": "[สรุปการแจกแจงคะแนนทีละขั้น และเหตุผลที่หักหรือให้คะแนนในแต่ละส่วน]",
-            "feedback": "[ภาพรวมการประเมินในเชิงวิชาการและสร้างสรรค์]",
-            "strengths": "[ระบุประเด็นที่นักเรียนตอบได้ถูกต้อง]",
-            "improvements": "[ระบุสิ่งที่ขาดหายไปหรือควรเพิ่มเติม]"
-        }}
-        """
-        
-        for attempt in range(3): # Retry up to 3 times
-            try:
-                response = self.model.generate_content(prompt)
-                text = response.text
-                
-                # Log interaction
-                log_entry = {
-                    "timestamp": datetime.now(),
-                    "context": context,
-                    "raw_response": text,
-                    "parsed_result": None,
-                    "attempt": attempt + 1,
-                    "status": "pending"
-                }
-
-                # cleaner extraction of JSON (handle markdown blocks)
-                json_str = text
-                if "```json" in text:
-                    json_str = text.split("```json")[1].split("```")[0].strip()
-                elif "```" in text:
-                    json_str = text.split("```")[1].split("```")[0].strip()
-                
-                # regex fallback
-                match = re.search(r'\{.*\}', json_str, re.DOTALL)
-                if match:
-                    try:
-                        result = json.loads(match.group())
-                        # Ensure score doesn't exceed max
-                        result['score'] = min(float(result.get('score', 0)), max_score)
-                        
-                        # Update log with success
-                        log_entry["parsed_result"] = result
-                        log_entry["status"] = "success"
-                        await db.db["ai_logs"].insert_one(log_entry)
-                        
-                        return result
-                    except json.JSONDecodeError as je:
-                        log_entry["status"] = f"parse_error: {str(je)}"
-                        await db.db["ai_logs"].insert_one(log_entry)
-                        raise je
-            except Exception as e:
-                print(f"Attempt {attempt+1} failed for Gemini call: {e}")
-                traceback.print_exc()
-                if attempt == 2:
-                    # Final log for failure
-                    await db.db["ai_logs"].insert_one({
-                        "timestamp": datetime.now(),
-                        "context": context,
-                        "error": str(e),
-                        "status": "failed"
-                    })
-                    return {"score": 0, "feedback": f"เกิดข้อผิดพลาดจาก AI: {str(e)}", "strengths": "", "improvements": ""}
-                await asyncio.sleep(1) # Wait before retry
-                
-        return {"score": 0, "feedback": "ไม่สามารถประมวลผลคำตอบได้ในขณะนี้", "strengths": "", "improvements": ""}
+        # Single grading now just calls the batch with one item for consistency or remains as is
+        results = await self.grade_batch([{
+            "question_text": question_text,
+            "student_answer": student_answer,
+            "max_score": max_score,
+            "answer_key": answer_key,
+            "rubric": rubric
+        }], context)
+        return results[0]
 
 ai_service = AIService()
