@@ -6,9 +6,14 @@ class Database:
     db = None
 
     def connect(self):
-        self.client = AsyncIOMotorClient(settings.MONGODB_URL)
+        # Add serverSelectionTimeoutMS to prevent indefinite hangs if the DB is unreachable
+        self.client = AsyncIOMotorClient(
+            settings.MONGODB_URL,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000
+        )
         self.db = self.client[settings.DB_NAME]
-        print("Connected to MongoDB")
+        print("MongoDB client initialized (connection will be tested on first operation)")
 
     def disconnect(self):
         if self.client:

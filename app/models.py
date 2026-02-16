@@ -24,17 +24,17 @@ class RubricItem(BaseModel):
 
 class QuestionModel(BaseModel):
     id: str  # e.g. "q1"
-    text: str = Field(..., min_length=5)
+    text: str = Field(..., min_length=1)
     max_score: int = Field(default=10, ge=1)
-    answer_key: Optional[str] = Field(default=None, min_length=2) # เฉลย/แนวคำตอบ
+    answer_key: Optional[str] = Field(default=None, min_length=1) # เฉลย/แนวคำตอบ
     grading_criteria: Optional[str] = None # เกณฑ์การให้คะแนน (Legacy/Simple)
     rubric: List[RubricItem] = [] # New structured rubric
 
 class ExamModel(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
-    subject: str = Field(..., min_length=2) # e.g. "วิทยาศาสตร์", "คณิตศาสตร์"
-    title: str = Field(..., min_length=3)
-    description: str = Field(..., min_length=5)
+    subject: str = Field(..., min_length=1) # e.g. "วิทยาศาสตร์", "คณิตศาสตร์"
+    title: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
     questions: List[QuestionModel] = Field(..., min_length=1)
     created_by: str  # teacher username
     is_deleted: bool = Field(default=False)

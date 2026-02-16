@@ -3,8 +3,8 @@ __pycache__/
 *.py[cod]
 venv/
 
-# Environment variables (Still recommended to keep private)
-# .env 
+# Environment variables
+.env
 
 # System files
 .DS_Store

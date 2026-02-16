@@ -26,41 +26,45 @@ async def lifespan(app: FastAPI):
     # Startup: Connect to DB
     db.connect()
     
-    # Seed Test Data (Upsert to avoid DuplicateKeyError)
-    users_collection = db.db["users"]
-    test_users = [
-        {"username": "student1", "password": pwd_context.hash("password"), "role": "student"},
-        {"username": "teacher1", "password": pwd_context.hash("password"), "role": "teacher"}
-    ]
-    for user_data in test_users:
-        await users_collection.update_one(
-            {"username": user_data["username"], "role": user_data["role"]},
-            {"$set": user_data},
-            upsert=True
+    # Seed Test Data - Wrapped in try-except to prevent hang if DB is unreachable
+    try:
+        print("Starting database seeding...")
+        users_collection = db.db["users"]
+        test_users = [
+            {"username": "student1", "password": pwd_context.hash("password"), "role": "student"},
+            {"username": "teacher1", "password": pwd_context.hash("password"), "role": "teacher"}
+        ]
+        for user_data in test_users:
+            await asyncio.wait_for(users_collection.update_one(
+                {"username": user_data["username"], "role": user_data["role"]},
+                {"$set": user_data},
+                upsert=True
+            ), timeout=5.0)
+        print("Ensured test users exist.")
+            
+        # Seed Exam Data
+        exams_collection = db.db["exams"]
+        from app.models import ExamModel, QuestionModel
+        sample_exam = ExamModel(
+            subject="ภาษาไทย",
+            title="สอบกลางภาค วิชาภาษาไทย",
+            description="ข้อสอบอัตนัยวัดความรู้ความเข้าใจในวรรณคดีไทย",
+            questions=[
+                QuestionModel(id="q1", text="จงอธิบายความสำคัญของวรรณคดีเรื่องขุนช้างขุนแผน", max_score=10),
+                QuestionModel(id="q2", text="ตัวละครใดในเรื่องพระอภัยมณีที่ท่านชื่นชอบที่สุด พร้อมเหตุผล", max_score=10)
+            ],
+            created_by="teacher1"
         )
-    print("Ensured test users exist with hashed passwords: student1, teacher1")
-        
-    # Seed Exam Data
-    # Seed Exam Data (Upsert to avoid DuplicateKeyError)
-    exams_collection = db.db["exams"]
-    from app.models import ExamModel, QuestionModel
-    sample_exam = ExamModel(
-        subject="ภาษาไทย",
-        title="สอบกลางภาค วิชาภาษาไทย",
-        description="ข้อสอบอัตนัยวัดความรู้ความเข้าใจในวรรณคดีไทย",
-        questions=[
-            QuestionModel(id="q1", text="จงอธิบายความสำคัญของวรรณคดีเรื่องขุนช้างขุนแผน", max_score=10),
-            QuestionModel(id="q2", text="ตัวละครใดในเรื่องพระอภัยมณีที่ท่านชื่นชอบที่สุด พร้อมเหตุผล", max_score=10)
-        ],
-        created_by="teacher1"
-    )
-    # Use title as a unique identifier for seeding
-    await exams_collection.update_one(
-        {"title": sample_exam.title},
-        {"$set": sample_exam.model_dump(by_alias=True, exclude_none=True, exclude={"id"})},
-        upsert=True
-    )
-    print("Ensured test exam exists")
+        await asyncio.wait_for(exams_collection.update_one(
+            {"title": sample_exam.title},
+            {"$set": sample_exam.model_dump(by_alias=True, exclude_none=True, exclude={"id"})},
+            upsert=True
+        ), timeout=5.0)
+        print("Ensured test exam exists.")
+    except asyncio.TimeoutError:
+        print("CRITICAL: Database seeding timed out! Your IP might not be whitelisted in MongoDB Atlas.")
+    except Exception as e:
+        print(f"CRITICAL: Database seeding failed: {e}")
 
     yield
     # Shutdown: Disconnect DB
@@ -224,14 +228,20 @@ async def teacher_dashboard(request: Request, user: dict = Depends(teacher_only)
 async def student_dashboard(request: Request, user: dict = Depends(get_current_user)):
     # Only show non-deleted exams for students
     exams = await db.db["exams"].find({"is_deleted": {"$ne": True}}).to_list(100)
-    # Convert _id to string for template
+    
+    # Group exams by subject
+    grouped_exams = {}
     for ex in exams:
         ex["id"] = str(ex["_id"])
+        subject = ex.get("subject", "ทั่วไป")
+        if subject not in grouped_exams:
+            grouped_exams[subject] = []
+        grouped_exams[subject].append(ex)
         
     return templates.TemplateResponse("student_dashboard.html", {
         "request": request, 
         "title": "Student Dashboard", 
-        "exams": exams,
+        "grouped_exams": grouped_exams,
         "user": user["username"]
     })
 
@@ -353,7 +363,7 @@ async def view_results(request: Request, user: dict = Depends(get_current_user))
     exams_list = await exams_cursor.to_list(len(exam_ids))
     exam_map = {str(ex["_id"]): ex for ex in exams_list}
 
-    # Group results by exam title
+    # Group results by subject (instead of exam title) for better organization
     grouped_results = {}
     for sub in submissions:
         if "submitted_at" in sub:
@@ -369,14 +379,32 @@ async def view_results(request: Request, user: dict = Depends(get_current_user))
                     ans["max_score"] = q.get("max_score")
                     ans["rubric"] = q.get("rubric", [])
 
-        title = sub.get("exam_title", "Uncategorized")
-        if title not in grouped_results:
-            grouped_results[title] = []
-        grouped_results[title].append(sub)
+        # Group by Subject
+        subject = sub.get("subject", "ทั่วไป")
+        if subject not in grouped_results:
+            grouped_results[subject] = []
+        grouped_results[subject].append(sub)
     
+    # Calculate Subject Statistics for Summary
+    subject_stats = {}
+    for subject, subs in grouped_results.items():
+        # Only count graded or reviewed submissions for stats
+        graded_subs = [s for s in subs if s.get("status") in ("graded", "reviewed")]
+        if graded_subs:
+            sum_actual = sum(s.get("teacher_total_score") if s.get("status") == "reviewed" else s.get("total_score", 0) for s in graded_subs)
+            sum_max = sum(s.get("max_score", 0) for s in graded_subs)
+            avg_pct = (sum_actual / sum_max * 100) if sum_max > 0 else 0
+            subject_stats[subject] = {
+                "count": len(graded_subs),
+                "avg_pct": round(avg_pct, 1),
+                "total_actual": sum_actual,
+                "total_max": sum_max
+            }
+
     return templates.TemplateResponse("results.html", {
         "request": request,
-        "grouped_results": grouped_results
+        "grouped_results": grouped_results,
+        "subject_stats": subject_stats
     })
 
 @app.get("/results/{submission_id}", response_class=HTMLResponse)
@@ -444,42 +472,66 @@ async def create_exam_submit(request: Request, user: dict = Depends(teacher_only
     q_rubric_jsons = form.getlist("q_rubric_json[]")
     
     from app.models import ExamModel, QuestionModel, RubricItem
+    from pydantic import ValidationError
     import json
     
-    questions = []
-    for i in range(len(q_texts)):
-        # Parse Rubric JSON
-        rubric_list = []
-        if i < len(q_rubric_jsons) and q_rubric_jsons[i]:
-            try:
-                print(f"DEBUG: Parsing rubric for q{i+1}: {q_rubric_jsons[i]}")
-                rubric_raw = json.loads(q_rubric_jsons[i])
-                rubric_list = [RubricItem(**r) for r in rubric_raw]
-            except Exception as e:
-                print(f"Error parsing rubric for q{i+1}: {e}")
-                import traceback
-                traceback.print_exc()
-                rubric_list = []
+    try:
+        questions = []
+        for i in range(len(q_texts)):
+            # Parse Rubric JSON
+            rubric_list = []
+            if i < len(q_rubric_jsons) and q_rubric_jsons[i]:
+                try:
+                    rubric_raw = json.loads(q_rubric_jsons[i])
+                    rubric_list = [RubricItem(**r) for r in rubric_raw]
+                except Exception as e:
+                    print(f"Error parsing rubric for q{i+1}: {e}")
+                    rubric_list = []
 
-        questions.append(QuestionModel(
-            id=f"q{i+1}",
-            text=q_texts[i],
-            max_score=int(q_scores[i]),
-            answer_key=q_keys[i] if i < len(q_keys) and q_keys[i].strip() else None,
-            grading_criteria=None, # Deprecated/Unused in form now
-            rubric=rubric_list
-        ))
+            questions.append(QuestionModel(
+                id=f"q{i+1}",
+                text=q_texts[i],
+                max_score=int(q_scores[i]),
+                answer_key=q_keys[i] if i < len(q_keys) and q_keys[i].strip() else None,
+                grading_criteria=None,
+                rubric=rubric_list
+            ))
+            
+        exam = ExamModel(
+            subject=subject,
+            title=title,
+            description=description,
+            questions=questions,
+            created_by=user["username"]
+        )
         
-    exam = ExamModel(
-        subject=subject,
-        title=title,
-        description=description,
-        questions=questions,
-        created_by=user["username"]
-    )
-    
-    await db.db["exams"].insert_one(exam.model_dump(by_alias=True, exclude={"id"}))
-    return RedirectResponse(url="/teacher/dashboard", status_code=303)
+        await db.db["exams"].insert_one(exam.model_dump(by_alias=True, exclude={"id"}))
+        return RedirectResponse(url="/teacher/dashboard", status_code=303)
+
+    except ValidationError as e:
+        # Return form with error
+        return templates.TemplateResponse("exam_form.html", {
+            "request": request,
+            "title": "สร้างข้อสอบใหม่",
+            "exam": {
+                "subject": subject,
+                "title": title,
+                "description": description,
+                "questions": [
+                    {"text": q_texts[i], "max_score": q_scores[i], "answer_key": q_keys[i] if i < len(q_keys) else "", "rubric": []}
+                    for i in range(len(q_texts))
+                ]
+            },
+            "error": "ข้อมูลไม่ถูกต้อง: กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องตามรูปแบบที่กำหนด"
+        })
+    except Exception as e:
+        print(f"Unexpected error in create_exam: {e}")
+        return templates.TemplateResponse("exam_form.html", {
+            "request": request,
+            "title": "สร้างข้อสอบใหม่",
+            "exam": None,
+            "error": f"เกิดข้อผิดพลาดที่ไม่คาดคิด: {str(e)}"
+        })
 
 @app.get("/teacher/exam/edit/{exam_id}", response_class=HTMLResponse)
 async def edit_exam_page(request: Request, exam_id: str, user: dict = Depends(teacher_only)):
@@ -501,42 +553,66 @@ async def edit_exam_submit(request: Request, exam_id: str, user: dict = Depends(
     q_rubric_jsons = form.getlist("q_rubric_json[]")
     
     from app.models import QuestionModel, RubricItem
+    from pydantic import ValidationError
     import json
 
-    questions = []
-    for i in range(len(q_texts)):
-        # Parse Rubric JSON
-        rubric_list = []
-        if i < len(q_rubric_jsons) and q_rubric_jsons[i]:
-            try:
-                print(f"DEBUG: Parsing rubric for q{i+1} (edit): {q_rubric_jsons[i]}")
-                rubric_raw = json.loads(q_rubric_jsons[i])
-                rubric_list = [RubricItem(**r) for r in rubric_raw]
-            except Exception as e:
-                print(f"Error parsing rubric for q{i+1}: {e}")
-                import traceback
-                traceback.print_exc()
-                rubric_list = []
+    try:
+        questions = []
+        for i in range(len(q_texts)):
+            # Parse Rubric JSON
+            rubric_list = []
+            if i < len(q_rubric_jsons) and q_rubric_jsons[i]:
+                try:
+                    rubric_raw = json.loads(q_rubric_jsons[i])
+                    rubric_list = [RubricItem(**r) for r in rubric_raw]
+                except Exception as e:
+                    print(f"Error parsing rubric for q{i+1}: {e}")
+                    rubric_list = []
 
-        questions.append(QuestionModel(
-            id=f"q{i+1}",
-            text=q_texts[i],
-            max_score=int(q_scores[i]),
-            answer_key=q_keys[i] if i < len(q_keys) and q_keys[i].strip() else None,
-            grading_criteria=None,
-            rubric=rubric_list
-        ))
-        
-    await db.db["exams"].update_one(
-        {"_id": ObjectId(exam_id)},
-        {"$set": {
-            "subject": form.get("subject"),
-            "title": form.get("title"),
-            "description": form.get("description"),
-            "questions": [q.model_dump() for q in questions]
-        }}
-    )
-    return RedirectResponse(url="/teacher/dashboard", status_code=303)
+            questions.append(QuestionModel(
+                id=f"q{i+1}",
+                text=q_texts[i],
+                max_score=int(q_scores[i]),
+                answer_key=q_keys[i] if i < len(q_keys) and q_keys[i].strip() else None,
+                grading_criteria=None,
+                rubric=rubric_list
+            ))
+            
+        await db.db["exams"].update_one(
+            {"_id": ObjectId(exam_id)},
+            {"$set": {
+                "subject": form.get("subject"),
+                "title": form.get("title"),
+                "description": form.get("description"),
+                "questions": [q.model_dump() for q in questions]
+            }}
+        )
+        return RedirectResponse(url="/teacher/dashboard", status_code=303)
+
+    except ValidationError as e:
+        return templates.TemplateResponse("exam_form.html", {
+            "request": request,
+            "title": "แก้ไขข้อสอบ",
+            "exam": {
+                "id": exam_id,
+                "subject": form.get("subject"),
+                "title": form.get("title"),
+                "description": form.get("description"),
+                "questions": [
+                    {"text": q_texts[i], "max_score": q_scores[i], "answer_key": q_keys[i] if i < len(q_keys) else "", "rubric": []}
+                    for i in range(len(q_texts))
+                ]
+            },
+            "error": "ข้อมูลไม่ถูกต้อง: กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องตามรูปแบบที่กำหนด"
+        })
+    except Exception as e:
+        print(f"Unexpected error in edit_exam: {e}")
+        return templates.TemplateResponse("exam_form.html", {
+            "request": request,
+            "title": "แก้ไขข้อสอบ",
+            "exam": {"id": exam_id},
+            "error": f"เกิดข้อผิดพลาดที่ไม่คาดคิด: {str(e)}"
+        })
 
 @app.post("/teacher/exam/delete/{exam_id}")
 async def delete_exam(request: Request, exam_id: str, user: dict = Depends(teacher_only)):
