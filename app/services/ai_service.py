@@ -1,4 +1,3 @@
-import google.generativeai as genai
 import json
 import re
 import asyncio
@@ -9,20 +8,36 @@ import traceback
 
 class AIService:
     def __init__(self):
-        # ล้างช่องว่างและตรวจสอบความถูกต้องเบื้องต้น
-        api_key = settings.GEMINI_API_KEY.strip()
-        key_len = len(api_key)
-        print(f"DEBUG: Loading Gemini API Key. Length: {key_len}")
-        print(f"DEBUG: Key context: {api_key[:4]}...{api_key[-4:] if key_len > 4 else ''}")
-        
-        if key_len < 30:
-            print("WARNING: API Key looks too short! (Usually around 39 characters)")
-            
-        genai.configure(api_key=api_key)
-        # ใช้ชื่อโมเดลที่แนะนำและเสถียรที่สุด
-        self.model = genai.GenerativeModel('gemini-flash-latest')
+        self._genai = None
+        self._model = None
         # Lazy initialization for semaphore to avoid event loop issues
         self._semaphore = None
+
+    @property
+    def genai(self):
+        """Lazy load google.generativeai and configure it."""
+        if self._genai is None:
+            print("DEBUG: Lazy loading google.generativeai...")
+            import google.generativeai as genai
+            
+            api_key = settings.GEMINI_API_KEY.strip()
+            key_len = len(api_key)
+            print(f"DEBUG: Loading Gemini API Key. Length: {key_len}")
+            
+            if key_len < 30:
+                print("WARNING: API Key looks too short! (Usually around 39 characters)")
+                
+            genai.configure(api_key=api_key)
+            self._genai = genai
+        return self._genai
+
+    @property
+    def model(self):
+        """Lazy load the generative model."""
+        if self._model is None:
+            # ใช้ชื่อโมเดลที่แนะนำและเสถียรที่สุด
+            self._model = self.genai.GenerativeModel('gemini-flash-latest')
+        return self._model
 
     @property
     def semaphore(self):

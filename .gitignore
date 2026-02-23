@@ -6,6 +6,30 @@ venv/
 # Environment variables
 .env
 
+# Logs and Data Dumps
+*.log
+*.txt
+!requirements.txt
+!README.md
+
+# IDE Settings
+.vscode/
+.idea/
+
+# Temporary / Test Scripts in root
+/test_*.py
+/verify_*.py
+/reproduce_*.py
+/check_*.py
+/list_*.py
+/save_*.py
+/parallel_*.py
+/trigger_*.py
+/migrate_*.py
+/seed_*.py
+/clear_db.py
+/fix_html.py
+
 # System files
 .DS_Store
 Thumbs.db

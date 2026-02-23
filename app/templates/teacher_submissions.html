@@ -107,6 +107,45 @@
             font-family: 'Prompt';
             min-width: 200px;
         }
+
+        .student-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.25rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+
+        .stat-card.active {
+            border: 2px solid var(--primary);
+            background: #f5f3ff;
+        }
+
+        .stat-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #1e293b;
+        }
+
+        .stat-info {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 0.5rem;
+        }
     </style>
 </head>
 
@@ -120,15 +159,43 @@
                 <h1 style="margin: 0.5rem 0 0 0; font-size: 1.75rem;">รายการส่งข้อสอบทั้งหมด</h1>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <span style="font-size: 0.9rem; color: #64748b;">กรองตามวิชา:</span>
-                <select id="subjectFilter" class="filter-select" onchange="filterSubmissions()">
-                    <option value="all">ทุกรายวิชา</option>
-                    {% for sub in subjects %}
-                    <option value="{{ sub }}">{{ sub }}</option>
-                    {% endfor %}
-                </select>
+            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 0.9rem; color: #64748b;">วิชา:</span>
+                    <select id="subjectFilter" class="filter-select" onchange="filterSubmissions()"
+                        style="min-width: 150px;">
+                        <option value="all">ทุกรายวิชา</option>
+                        {% for sub in subjects %}
+                        <option value="{{ sub }}">{{ sub }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 0.9rem; color: #64748b;">นักเรียน:</span>
+                    <select id="studentFilter" class="filter-select" onchange="filterSubmissions()"
+                        style="min-width: 150px;">
+                        <option value="all">ทุกคน</option>
+                        {% for student in students %}
+                        <option value="{{ student }}">{{ student }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
+        </div>
+
+        <div class="student-stats-grid">
+            <div class="stat-card active" onclick="selectStudent('all')" id="stat-all">
+                <div class="stat-name">นักเรียนทุกคน</div>
+                <div class="stat-info">{{ submissions|length }} รายการส่งทั้งหมด</div>
+            </div>
+            {% for student, stats in student_stats.items() %}
+            <div class="stat-card" onclick="selectStudent('{{ student }}')" id="stat-{{ student }}">
+                <div class="stat-name">{{ student }}</div>
+                <div class="stat-info">
+                    ส่งแล้ว: {{ stats.count }} ชุด | เฉลี่ย: {{ stats.avg_score }}
+                </div>
+            </div>
+            {% endfor %}
         </div>
 
         <div class="card">
@@ -146,7 +213,7 @@
                 </thead>
                 <tbody>
                     {% for sub in submissions %}
-                    <tr class="sub-row" data-subject="{{ sub.subject }}">
+                    <tr class="sub-row" data-subject="{{ sub.subject }}" data-student="{{ sub.student_username }}">
                         <td style="font-weight: 600; color: var(--primary);">{{ sub.subject }}</td>
                         <td>{{ sub.student_username }}</td>
                         <td style="font-weight: 500;">{{ sub.exam_title }}</td>
@@ -173,12 +240,35 @@
     </div>
 
     <script>
+        function selectStudent(student) {
+            document.getElementById('studentFilter').value = student;
+
+            // Update card UI
+            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+            const activeCard = document.getElementById('stat-' + student);
+            if (activeCard) activeCard.classList.add('active');
+
+            filterSubmissions();
+        }
+
         function filterSubmissions() {
-            const filter = document.getElementById('subjectFilter').value;
+            const subjectFilter = document.getElementById('subjectFilter').value;
+            const studentFilter = document.getElementById('studentFilter').value;
             const rows = document.querySelectorAll('.sub-row');
+
+            // Sync card UI if filter changed via dropdown
+            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+            const activeCard = document.getElementById('stat-' + studentFilter);
+            if (activeCard) activeCard.classList.add('active');
+
             rows.forEach(row => {
                 const subject = row.getAttribute('data-subject');
-                if (filter === 'all' || subject === filter) {
+                const student = row.getAttribute('data-student');
+
+                const subjectMatch = (subjectFilter === 'all' || subject === subjectFilter);
+                const studentMatch = (studentFilter === 'all' || student === studentFilter);
+
+                if (subjectMatch && studentMatch) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';

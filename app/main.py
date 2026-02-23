@@ -62,9 +62,10 @@ async def lifespan(app: FastAPI):
         ), timeout=5.0)
         print("Ensured test exam exists.")
     except asyncio.TimeoutError:
-        print("CRITICAL: Database seeding timed out! Your IP might not be whitelisted in MongoDB Atlas.")
+        print("CRITICAL: การเชื่อมต่อฐานข้อมูลล่าช้า! (Database seeding timed out)")
+        print("กรุณาตรวจสอบว่าคุณได้เพิ่ม IP ปัจจุบันลงใน MongoDB Atlas Network Access แล้วหรือยัง")
     except Exception as e:
-        print(f"CRITICAL: Database seeding failed: {e}")
+        print(f"CRITICAL: ไม่สามารถเริ่มระบบฐานข้อมูลได้: {e}")
 
     yield
     # Shutdown: Disconnect DB
@@ -630,6 +631,23 @@ async def teacher_submissions(request: Request, user: dict = Depends(teacher_onl
     exam_map = {str(e["_id"]): e.get("subject", "ไม่ได้ระบุ") for e in exams}
     
     unique_subjects = sorted(list(set(exam_map.values())))
+    unique_students = sorted(list(set(sub.get("student_username") for sub in submissions if "student_username" in sub)))
+
+    # Calculate Student Stats
+    student_stats = {}
+    for student in unique_students:
+        student_subs = [s for s in submissions if s.get("student_username") == student]
+        graded_subs = [s for s in student_subs if s.get("status") in ("graded", "reviewed")]
+        
+        avg_score = 0
+        if graded_subs:
+            sum_score = sum(s.get("teacher_total_score", s.get("total_score", 0)) for s in graded_subs)
+            avg_score = round(sum_score / len(graded_subs), 2)
+            
+        student_stats[student] = {
+            "count": len(student_subs),
+            "avg_score": avg_score
+        }
 
     for sub in submissions:
         sub["id"] = str(sub["_id"])
@@ -643,7 +661,9 @@ async def teacher_submissions(request: Request, user: dict = Depends(teacher_onl
     return templates.TemplateResponse("teacher_submissions.html", {
         "request": request,
         "submissions": submissions,
-        "subjects": unique_subjects
+        "subjects": unique_subjects,
+        "students": unique_students,
+        "student_stats": student_stats
     })
 
 @app.get("/teacher/submission/{sub_id}/review", response_class=HTMLResponse)
