@@ -26,6 +26,12 @@ async def lifespan(app: FastAPI):
     # Startup: Connect to DB
     db.connect()
     
+    # Test connection and handle fallbacks
+    connected = await db.test_connection()
+    if not connected:
+        print("CRITICAL: Failed to establish a database connection.")
+        # We continue to allow the app to start, but operations will fail
+    
     # Seed Test Data - Wrapped in try-except to prevent hang if DB is unreachable
     try:
         print("Starting database seeding...")
@@ -90,11 +96,15 @@ async def get_current_user(request: Request):
         raise HTTPException(status_code=303, detail="Not authenticated", headers={"Location": "/login"})
     
     # Securely verify user and role from database (Server-side check)
+    user_cookie = user_cookie.strip()
     user = await db.db["users"].find_one({"username": user_cookie})
     if not user:
         raise HTTPException(status_code=303, detail="User not found", headers={"Location": "/login"})
-    
-    return {"username": user["username"], "role": user["role"]}
+    return {
+        "username": user["username"], 
+        "role": user.get("role", "student"),
+        "enrolled_subjects": user.get("enrolled_subjects", [])
+    }
 
 def teacher_only(user: dict = Depends(get_current_user)):
     if user["role"] != "teacher":
@@ -112,24 +122,23 @@ async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "title": "ระบบตรวจข้อสอบอัตนัย"})
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, role: str = "student"):
-    role_name = " (นักเรียน)" if role == "student" else " (ผู้สอน)"
+async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {
-        "request": request, 
-        "role": role, 
-        "role_name": role_name
+        "request": request,
+        "title": "เข้าสู่ระบบ"
     })
 
 @app.post("/login", response_class=HTMLResponse)
-async def login_submit(request: Request, role: str = Form(...), username: str = Form(...), password: str = Form(...)):
+async def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
     user_collection = db.db["users"]
-    user = await user_collection.find_one({"username": username, "role": role})
+    # Find user by username only
+    user = await user_collection.find_one({"username": username})
     
     if user and pwd_context.verify(password, user["password"]):
-        # Success: Redirect to dashboard
+        # Success: Redirect based on role in database
+        role = user.get("role", "student")
         target = "/student/dashboard" if role == "student" else "/teacher/dashboard" 
         response = RedirectResponse(url=target, status_code=303)
-        # Store ONLY username in cookie (Role is checked server-side for security)
         response.set_cookie(key="user_session", value=username)
         return response
     
@@ -164,27 +173,33 @@ async def register_submit(request: Request, username: str = Form(...), password:
             "error": "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเลือกชื่ออื่น"
         })
     
-    # Create new student user
+    # Create new student user with empty enrollment list
     new_user = {
         "username": username,
         "password": pwd_context.hash(password),
-        "role": "student"
+        "role": "student",
+        "enrolled_subjects": []
     }
     
     await user_collection.insert_one(new_user)
     
     # Redirect to login with success message possibly? For now just simple redirect
-    return RedirectResponse(url="/login?role=student", status_code=303)
+    return RedirectResponse(url="/login", status_code=303)
 
 @app.get("/teacher/dashboard", response_class=HTMLResponse)
 async def teacher_dashboard(request: Request, user: dict = Depends(teacher_only)):
-    # Only show non-deleted exams
-    exams_cursor = db.db["exams"].find({"is_deleted": {"$ne": True}})
+    # Only show non-deleted exams created by this teacher
+    exams_cursor = db.db["exams"].find({
+        "created_by": user["username"],
+        "is_deleted": {"$ne": True}
+    })
     exams = await exams_cursor.to_list(100)
     for ex in exams:
         ex["id"] = str(ex["_id"])
-        
-    submissions_cursor = db.db["submissions"].find().sort("submitted_at", -1)
+    
+    # Filter submissions that belong to this teacher's exams
+    exam_ids = [str(ex["_id"]) for ex in exams]
+    submissions_cursor = db.db["submissions"].find({"exam_id": {"$in": exam_ids}}).sort("submitted_at", -1)
     all_submissions = await submissions_cursor.to_list(1000)
     
     # Calculate Stats
@@ -206,6 +221,14 @@ async def teacher_dashboard(request: Request, user: dict = Depends(teacher_only)
         
     # Get Unique Subjects for Filter
     subjects = sorted(list(set(ex.get("subject") for ex in exams if ex.get("subject"))))
+    
+    # NEW: Get Enrolled Students for this teacher's subject(s)
+    # Assuming one teacher manages one primary subject for now, but we check all their subjects
+    enrolled_students_cursor = db.db["users"].find({
+        "role": "student",
+        "enrolled_subjects": {"$in": subjects}
+    })
+    enrolled_students = await enrolled_students_cursor.to_list(1000)
         
     recent_submissions = all_submissions[:10]
     for sub in recent_submissions:
@@ -217,6 +240,7 @@ async def teacher_dashboard(request: Request, user: dict = Depends(teacher_only)
         "exams": exams,
         "subjects": subjects,
         "submissions": recent_submissions,
+        "enrolled_students": enrolled_students,
         "stats": {
             "total_exams": total_exams,
             "total_submissions": total_subs,
@@ -225,26 +249,109 @@ async def teacher_dashboard(request: Request, user: dict = Depends(teacher_only)
         }
     })
 
+@app.get("/test_server_reload")
+async def test_reload():
+    return {"status": "ok", "message": "The server has successfully reloaded!"}
+
+@app.get("/dump_user")
+async def dump_user_route(request: Request):
+    user_cookie = request.cookies.get("user_session")
+    if not user_cookie:
+        return {"error": "no cookie"}
+    db_name = db.db.name
+    user = await db.db["users"].find_one({"username": user_cookie.strip()})
+    return {
+        "cookie": user_cookie,
+        "db": db_name,
+        "user_doc": str(user),
+        "enrolled": user.get("enrolled_subjects", []) if user else []
+    }
+
 @app.get("/student/dashboard", response_class=HTMLResponse)
 async def student_dashboard(request: Request, user: dict = Depends(get_current_user)):
-    # Only show non-deleted exams for students
-    exams = await db.db["exams"].find({"is_deleted": {"$ne": True}}).to_list(100)
+    # All available subjects from active exams
+    all_exams_cursor = db.db["exams"].find({"is_deleted": {"$ne": True}})
+    all_exams = await all_exams_cursor.to_list(500)
     
-    # Group exams by subject
+    available_subjects = sorted(list(set(ex.get("subject", "").strip() for ex in all_exams if ex.get("subject"))))
+    enrolled_subjects = [s.strip() for s in user.get("enrolled_subjects", []) if isinstance(s, str)]
+    
+    # DEBUG LOGGING (Visible in console)
+    print(f"--- DASHBOARD DEBUG [{user['username']}] ---")
+    print(f"DB Name: {db.db.name}")
+    print(f"Raw Enrolled from User Doc: {user.get('enrolled_subjects')}")
+    print(f"Final Enrolled List: {enrolled_subjects}")
+    print(f"Total Active Exams: {len(all_exams)}")
+    
+    # Filter exams to only those the student is enrolled in (normalize for matching)
+    enrolled_exams = []
+    for ex in all_exams:
+        subj = ex.get("subject")
+        if subj and subj.strip() in enrolled_subjects:
+            enrolled_exams.append(ex)
+    
+    # Group enrolled exams by subject (normalize keys)
     grouped_exams = {}
-    for ex in exams:
+    for ex in enrolled_exams:
         ex["id"] = str(ex["_id"])
-        subject = ex.get("subject", "ทั่วไป")
+        subject = ex.get("subject", "ทั่วไป").strip()
         if subject not in grouped_exams:
             grouped_exams[subject] = []
         grouped_exams[subject].append(ex)
         
     return templates.TemplateResponse("student_dashboard.html", {
         "request": request, 
-        "title": "Student Dashboard", 
+        "title": "หน้าแรก (นักเรียน)", 
         "grouped_exams": grouped_exams,
+        "available_subjects": available_subjects,
+        "enrolled_subjects": enrolled_subjects,
         "user": user["username"]
     })
+
+@app.post("/student/enroll")
+async def enroll_subject(request: Request, subject: str = Form(...), user: dict = Depends(get_current_user)):
+    user_collection = db.db["users"]
+    subject = subject.strip()
+    
+    # Check if subject exists in any active exam (Using regex for robustness)
+    import re
+    safe_subject = re.escape(subject)
+    exam_exists = await db.db["exams"].find_one({
+        "subject": {"$regex": f"^{safe_subject}$", "$options": "i"}, 
+        "is_deleted": {"$ne": True}
+    })
+    
+    if not exam_exists:
+         # Fallback search: maybe the DB has trailing spaces we missed?
+         exam_exists = await db.db["exams"].find_one({
+             "subject": {"$regex": f"^\\s*{safe_subject}\\s*$", "$options": "i"},
+             "is_deleted": {"$ne": True}
+         })
+         
+    if not exam_exists:
+         print(f"DEBUG: Enrollment failed for subject '{subject}' - No match found.")
+         return RedirectResponse(url=f"/student/dashboard?error=ไม่พบวิชา: {subject}", status_code=303)
+         
+    # Add subject to user's enrolled list using $addToSet (ensures uniqueness)
+    await user_collection.update_one(
+        {"username": user["username"]},
+        {"$addToSet": {"enrolled_subjects": subject}}
+    )
+    
+    return RedirectResponse(url="/student/dashboard", status_code=303)
+
+@app.post("/student/unenroll")
+async def unenroll_subject(request: Request, subject: str = Form(...), user: dict = Depends(get_current_user)):
+    user_collection = db.db["users"]
+    subject = subject.strip()
+    
+    # Remove subject from user's enrolled list using $pull
+    await user_collection.update_one(
+        {"username": user["username"]},
+        {"$pull": {"enrolled_subjects": subject}}
+    )
+    
+    return RedirectResponse(url="/student/dashboard", status_code=303)
 
 @app.get("/exam/{exam_id}", response_class=HTMLResponse)
 async def take_exam(request: Request, exam_id: str, user: dict = Depends(get_current_user)):
@@ -537,8 +644,12 @@ async def edit_exam_page(request: Request, exam_id: str, user: dict = Depends(te
     
     exam = await db.db["exams"].find_one({"_id": ObjectId(exam_id)})
     if not exam: return HTMLResponse("Exam not found", status_code=404)
-    exam["id"] = str(exam["_id"])
     
+    # Ownership Check
+    if exam.get("created_by") != user["username"]:
+        raise HTTPException(status_code=403, detail="You do not have permission to edit this exam.")
+        
+    exam["id"] = str(exam["_id"])
     return templates.TemplateResponse("exam_form.html", {"request": request, "title": "แก้ไขข้อสอบ", "exam": exam})
 
 @app.post("/teacher/exam/edit/{exam_id}")
@@ -577,6 +688,11 @@ async def edit_exam_submit(request: Request, exam_id: str, user: dict = Depends(
                 rubric=rubric_list
             ))
             
+        # Ownership Check
+        existing_exam = await db.db["exams"].find_one({"_id": ObjectId(exam_id)})
+        if not existing_exam or existing_exam.get("created_by") != user["username"]:
+             raise HTTPException(status_code=403, detail="You do not have permission to edit this exam.")
+
         await db.db["exams"].update_one(
             {"_id": ObjectId(exam_id)},
             {"$set": {
@@ -615,6 +731,11 @@ async def edit_exam_submit(request: Request, exam_id: str, user: dict = Depends(
 
 @app.post("/teacher/exam/delete/{exam_id}")
 async def delete_exam(request: Request, exam_id: str, user: dict = Depends(teacher_only)):
+    # Ownership Check
+    exam = await db.db["exams"].find_one({"_id": ObjectId(exam_id)})
+    if not exam or exam.get("created_by") != user["username"]:
+         raise HTTPException(status_code=403, detail="You do not have permission to delete this exam.")
+
     # Soft Delete: Set is_deleted to True
     await db.db["exams"].update_one(
         {"_id": ObjectId(exam_id)},
@@ -624,11 +745,13 @@ async def delete_exam(request: Request, exam_id: str, user: dict = Depends(teach
 
 @app.get("/teacher/submissions", response_class=HTMLResponse)
 async def teacher_submissions(request: Request, user: dict = Depends(teacher_only)):
-    submissions = await db.db["submissions"].find().sort("submitted_at", -1).to_list(100)
-    
-    # Get all exams to map subjects if missing (legacy data)
-    exams = await db.db["exams"].find({}, {"subject": 1, "title": 1}).to_list(100)
-    exam_map = {str(e["_id"]): e.get("subject", "ไม่ได้ระบุ") for e in exams}
+    # Get this teacher's exams first
+    teacher_exams = await db.db["exams"].find({"created_by": user["username"]}).to_list(1000)
+    exam_ids = [str(e["_id"]) for e in teacher_exams]
+    exam_map = {str(e["_id"]): e.get("subject", "ไม่ได้ระบุ") for e in teacher_exams}
+
+    # Only show submissions for this teacher's exams
+    submissions = await db.db["submissions"].find({"exam_id": {"$in": exam_ids}}).sort("submitted_at", -1).to_list(1000)
     
     unique_subjects = sorted(list(set(exam_map.values())))
     unique_students = sorted(list(set(sub.get("student_username") for sub in submissions if "student_username" in sub)))
@@ -672,8 +795,12 @@ async def review_submission_page(request: Request, sub_id: str, user: dict = Dep
     submission = await db.db["submissions"].find_one({"_id": ObjectId(sub_id)})
     if not submission: return HTMLResponse("Submission not found", status_code=404)
     
-    # Get associated exam to show question texts (since they might not be in submission)
+    # Get associated exam
     exam = await db.db["exams"].find_one({"_id": ObjectId(submission["exam_id"])})
+    
+    # Ownership Check
+    if not exam or exam.get("created_by") != user["username"]:
+        raise HTTPException(status_code=403, detail="You do not have permission to review this submission.")
     
     # Enrich answers with question text and AI details
     for ans in submission["answers"]:
@@ -795,9 +922,13 @@ async def review_submission_submit(request: Request, sub_id: str, user: dict = D
 
 @app.get("/teacher/exam/{exam_id}/export")
 async def export_results(exam_id: str, user: dict = Depends(teacher_only)):
+    # Ownership Check
+    exam = await db.db["exams"].find_one({"_id": ObjectId(exam_id)})
+    if not exam or exam.get("created_by") != user["username"]:
+         raise HTTPException(status_code=403, detail="You do not have permission to export this exam.")
+
     # Fetch all submissions for this exam
     submissions = await db.db["submissions"].find({"exam_id": exam_id}).to_list(1000)
-    exam = await db.db["exams"].find_one({"_id": ObjectId(exam_id)})
     
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")

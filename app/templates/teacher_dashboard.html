@@ -314,6 +314,37 @@
             font-family: inherit;
             font-weight: 500;
         }
+
+        .student-pill {
+            background: rgba(255, 255, 255, 0.5);
+            padding: 0.75rem 1.25rem;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .student-pill:hover {
+            background: white;
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+
+        .avatar-small {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary-light), var(--accent));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 800;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -420,6 +451,26 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 3rem;">
+            <div class="header-section">
+                <h2 style="margin:0;">👥 นักเรียนที่ลงทะเบียน ({{ enrolled_students|length }})</h2>
+            </div>
+            {% if enrolled_students %}
+            <div style="display: flex; flex-wrap: wrap; margin-top: -0.5rem;">
+                {% for student in enrolled_students %}
+                <div class="student-pill">
+                    <div class="avatar-small">{{ student.username[0] | upper }}</div>
+                    <span style="font-weight: 600;">{{ student.username }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                ยังไม่มีนักเรียนลงทะเบียนในวิชานี้
+            </div>
+            {% endif %}
         </div>
 
         <div class="card">
